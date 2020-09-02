@@ -1,14 +1,31 @@
+/**
+* O   L    A  U   P       S
+* ONE LIST && USE POINTER SUB-LISTS
+*
+* CONTAGION
+* v 0.2.0
+* 2020-2020
+* implementation to use a main list, with two pointer sublists
+* each element of infected list look the condition to infected element 
+* from safe list is completed, if it's the case the marker can be changed.
+* After the sublists is clear and reset from the main list.
+*/
 #include <iostream>
 #include <vector>
 #include <random>
 #include <time.h>
 #include <chrono>
-// #include <pair>
 
+/**
+* HEADER
+*/
 void contagion_linear(std::vector<std::pair<int,float>*> &infected_list, 
 											std::vector<std::pair<int,float>*> &safe_list);
-
 void contagion_rand(std::vector<std::pair<int,float>*> &infected_list, 
+										std::vector<std::pair<int,float>*> &safe_list,
+										int max_iteration);
+
+void contagion_fast_rand(std::vector<std::pair<int,float>*> &infected_list, 
 										std::vector<std::pair<int,float>*> &safe_list,
 										int max_iteration);
 struct xorshift128_state {
@@ -40,11 +57,13 @@ void end_time(T start, unsigned int num_access) {
 }
 
 
-
+/**
+* MAIN
+*/
 int main() {
 	int num = 100000;
-	int num_infected = 3000;
-	int round = 1;
+	int num_infected = 2;
+	int round = 10;
 
 	std::vector<std::pair<int,float>> list;
 	std::vector<std::pair<int,float>*> infected_list;
@@ -54,23 +73,98 @@ int main() {
 	std::cout << "LINEAR ITERATION" << std::endl;
 	set_random_list(list, num_infected, num);
 	set_sub_list_ptr(list, infected_list, safe_list);
-	test_content(list, infected_list, safe_list);
 	for(int i = 0 ; i < round ; i++) {
 		contagion_linear(infected_list, safe_list);
 		set_sub_list_ptr(list, infected_list, safe_list);
-		test_content(list, infected_list, safe_list);
+		// test_content(list, infected_list, safe_list);
 	}
   
-  std::cout << "RANDOM ITERATION" << std::endl;
+  std::cout << "\nFAST RANDOM ITERATION" << std::endl;
   set_random_list(list, num_infected, num);
 	set_sub_list_ptr(list, infected_list, safe_list);
-	test_content(list, infected_list, safe_list);
+	for(int i = 0 ; i < round ; i++) {
+		int max_iter = infected_list.size() * safe_list.size();
+		contagion_fast_rand(infected_list, safe_list, max_iter);
+		set_sub_list_ptr(list, infected_list, safe_list);
+		//test_content(list, infected_list, safe_list);
+	}
+
+	std::cout << "\nRANDOM ITERATION" << std::endl;
+  set_random_list(list, num_infected, num);
+	set_sub_list_ptr(list, infected_list, safe_list);
+	// test_content(list, infected_list, safe_list);
 	for(int i = 0 ; i < round ; i++) {
 		int max_iter = infected_list.size() * safe_list.size();
 		contagion_rand(infected_list, safe_list, max_iter);
 		set_sub_list_ptr(list, infected_list, safe_list);
-		test_content(list, infected_list, safe_list);
+		//test_content(list, infected_list, safe_list);
 	}
+}
+
+
+
+/**
+* FUNCTION
+*/
+void contagion_rand(std::vector<std::pair<int,float>*> &infected_list, 
+										std::vector<std::pair<int,float>*> &safe_list,
+										int max_iteration) {
+	auto start = std::chrono::system_clock::now();
+	
+	float dist_max = 0.0001;
+	int len_inf = infected_list.size();
+	int len_saf = safe_list.size();
+
+	std::random_device seed;
+	std::default_random_engine gen(seed());
+
+	unsigned int iter = 0;
+	while(iter < max_iteration) {
+		int index_inf = random_int(0,len_inf -1,gen);
+		int index_saf = random_int(0,len_saf -1,gen);;
+		float pos_inf = infected_list.at(index_inf)->second;
+		std::pair<int,float>*  host = safe_list.at(index_saf);
+		float pos_safe = host->second;
+		if(abs(pos_inf - pos_safe) < dist_max) {
+			host->first = 1;
+		}
+		iter++;
+	}
+	end_time(start, iter);
+}
+
+void contagion_fast_rand(std::vector<std::pair<int,float>*> &infected_list, 
+										std::vector<std::pair<int,float>*> &safe_list,
+										int max_iteration) {
+	auto start = std::chrono::system_clock::now();
+	
+	float dist_max = 0.0001;
+	xorshift128_state state_inf;
+	state_inf.x = static_cast<uint32_t>(random_int(UINT_MAX));
+	state_inf.y = static_cast<uint32_t>(random_int(UINT_MAX));
+	state_inf.z = static_cast<uint32_t>(random_int(UINT_MAX));
+	state_inf.w = static_cast<uint32_t>(random_int(UINT_MAX));
+	xorshift128_state state_saf;
+	state_saf.x = static_cast<uint32_t>(random_int(UINT_MAX));
+	state_saf.y = static_cast<uint32_t>(random_int(UINT_MAX));
+	state_saf.z = static_cast<uint32_t>(random_int(UINT_MAX));
+	state_saf.w = static_cast<uint32_t>(random_int(UINT_MAX));
+	int len_inf = infected_list.size();
+	int len_saf = safe_list.size();
+
+	unsigned int iter = 0;
+	while(iter < max_iteration) {
+		int index_inf = floor((xor128(state_inf) / static_cast<float>(UINT_MAX)) * (len_inf -1));
+		int index_saf = floor((xor128(state_saf) / static_cast<float>(UINT_MAX)) * (len_saf -1));
+		float pos_inf = infected_list.at(index_inf)->second;
+		std::pair<int,float>*  host = safe_list.at(index_saf);
+		float pos_safe = host->second;
+		if(abs(pos_inf - pos_safe) < dist_max) {
+			host->first = 1;
+		}
+		iter++;
+	}
+	end_time(start, iter);
 }
 
 
@@ -97,40 +191,7 @@ void contagion_linear(std::vector<std::pair<int,float>*> &infected_list,
 	end_time(start, iter);
 }
 
-void contagion_rand(std::vector<std::pair<int,float>*> &infected_list, 
-										std::vector<std::pair<int,float>*> &safe_list,
-										int max_iteration) {
-	auto start = std::chrono::system_clock::now();
-	
-	float dist_max = 0.0001;
-	xorshift128_state state_inf;
-	state_inf.x = static_cast<uint32_t>(random_int(UINT_MAX));
-	state_inf.y = static_cast<uint32_t>(random_int(UINT_MAX));
-	state_inf.z = static_cast<uint32_t>(random_int(UINT_MAX));
-	state_inf.w = static_cast<uint32_t>(random_int(UINT_MAX));
-	xorshift128_state state_saf;
-	state_saf.x = static_cast<uint32_t>(random_int(UINT_MAX));
-	state_saf.y = static_cast<uint32_t>(random_int(UINT_MAX));
-	state_saf.z = static_cast<uint32_t>(random_int(UINT_MAX));
-	state_saf.w = static_cast<uint32_t>(random_int(UINT_MAX));
-	int len_inf = infected_list.size();
-	int len_saf = safe_list.size();
-	
-	unsigned int iter = 0;
-	while(iter < max_iteration) {
-	//for(int i = 0 ; i < max_iteration ; i++) {
-		int index_inf = floor((xor128(state_inf) / static_cast<float>(UINT_MAX)) * len_inf);
-		int index_saf = floor((xor128(state_saf) / static_cast<float>(UINT_MAX)) * len_saf);
-		float pos_inf = infected_list.at(index_inf)->second;
-		std::pair<int,float>*  host = safe_list.at(index_saf);
-		float pos_safe = host->second;
-		if(abs(pos_inf - pos_safe) < dist_max) {
-			host->first = 1;
-		}
-		iter++;
-	}
-	end_time(start, iter);
-}
+
 
 
 uint32_t xor128(struct xorshift128_state &state) {
@@ -152,7 +213,9 @@ uint32_t xor128(struct xorshift128_state &state) {
 
 
 
-// test
+/**
+* TEST
+*/
 void test_content(std::vector<std::pair<int,float>> &list, 
 									std::vector<std::pair<int,float>*> &infected_list, 
 										std::vector<std::pair<int,float>*> &safe_list) {
@@ -174,7 +237,9 @@ void test_content(std::vector<std::pair<int,float>> &list,
 
 
 
-// utils
+/**
+* UTILS
+*/
 void set_random_list(std::vector<std::pair<int,float>> &list, int num_infected, int length) {
 	float range = 1.0f;
 	list.clear();

@@ -22,8 +22,6 @@ struct xorshift128_state {
 	uint32_t x, y, z, w;
 };
 
-
-
 uint32_t xor128(struct xorshift128_state &state) {
 	static uint32_t x = state.x;
 	static uint32_t y = state.y;
